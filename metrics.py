@@ -3,10 +3,19 @@ import math
 import numpy as np
 
 def log10(x):
-      """Convert a new tensor with the base-10 logarithm of the elements of x. """
-      return torch.log(x) / math.log(10)
+    """Convert a new tensor with the base-10 logarithm of the elements of x.
+    
+    Args:
+        x (torch.Tensor): The input tensor.
+    
+    Returns:
+        torch.Tensor: The tensor with the base-10 logarithm of the elements of x.
+    """
+    return torch.log(x) / math.log(10)
 
 class Result(object):
+    """Class to store evaluation metrics of a model for a single image."""
+    
     def __init__(self):
         self.irmse, self.imae = 0, 0
         self.mse, self.rmse, self.mae = 0, 0, 0
@@ -15,6 +24,7 @@ class Result(object):
         self.data_time, self.gpu_time = 0, 0
 
     def set_to_worst(self):
+        """Set all metrics to worst values."""
         self.irmse, self.imae = np.inf, np.inf
         self.mse, self.rmse, self.mae = np.inf, np.inf, np.inf
         self.absrel, self.lg10 = np.inf, np.inf
@@ -22,6 +32,7 @@ class Result(object):
         self.data_time, self.gpu_time = 0, 0
 
     def update(self, irmse, imae, mse, rmse, mae, absrel, lg10, delta1, delta2, delta3, gpu_time, data_time):
+        """Update the metrics with the given values."""
         self.irmse, self.imae = irmse, imae
         self.mse, self.rmse, self.mae = mse, rmse, mae
         self.absrel, self.lg10 = absrel, lg10
@@ -29,6 +40,12 @@ class Result(object):
         self.data_time, self.gpu_time = data_time, gpu_time
 
     def evaluate(self, output, target):
+        """Calculate evaluation metrics of the model.
+        
+        Args:
+            output (torch.Tensor): The output of the model.
+            target (torch.Tensor): The ground truth.
+        """
         valid_mask = ((target>0) + (output>0)) > 0
 
         output = 1e3 * output[valid_mask]
@@ -60,6 +77,9 @@ class AverageMeter(object):
         self.reset()
 
     def reset(self):
+        """
+        Resets the object to its initial state.
+        """
         self.count = 0.0
 
         self.sum_irmse, self.sum_imae = 0, 0
@@ -69,8 +89,19 @@ class AverageMeter(object):
         self.sum_data_time, self.sum_gpu_time = 0, 0
 
     def update(self, result, gpu_time, data_time, n=1):
+        """
+        Updates the sum of each metric given the result, gpu_time, data_time and n. n specifies how many samples have been
+        processed. 
+
+        Args:
+        result: A Result object containing the metrics of the samples.
+        gpu_time: Time taken to process the samples on GPU.
+        data_time: Time taken to load the samples.
+        n: Number of samples processed. Default is 1.
+        """
         self.count += n
 
+        # updates the sum of each metric
         self.sum_irmse += n*result.irmse
         self.sum_imae += n*result.imae
         self.sum_mse += n*result.mse
@@ -85,6 +116,12 @@ class AverageMeter(object):
         self.sum_gpu_time += n*gpu_time
 
     def average(self):
+        """
+        Calculates the average of each metric and returns the result as a Result object.
+
+        Returns:
+        An instance of Result class with the average of each metric.
+        """
         avg = Result()
         avg.update(
             self.sum_irmse / self.count, self.sum_imae / self.count,
