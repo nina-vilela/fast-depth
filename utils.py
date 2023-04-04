@@ -43,14 +43,6 @@ def parse_command():
     
     return args
 
-def get_output_directory(args):
-    """Create output directory for model checkpoints and visualization results."""
-    output_directory = os.path.join('./results',
-        'criterion={}.lr={}.bs={}.pretrained={}'.
-        format(args.criterion, args.lr, args.batch_size, \
-            args.pretrained))
-    return output_directory
-
 def colored_depthmap(depth, d_min=None, d_max=None):
     """Create a colorized depth map from a given depth map."""
     if d_min is None:
