@@ -5,6 +5,8 @@ This repository contains a PyTorch implementation of the FastDepth algorithm for
 - The original FastDepth implementation can be found at https://github.com/dwofk/fast-depth. 
 - The training script uses some functions by https://github.com/tau-adl/FastDepth
 
+![](https://github.com/nina-vilela/retrain-fast-depth/blob/master/retraining_fastdepth.gif)
+
 ## Usage
 Install requirements:
 ```bash
