@@ -41,7 +41,6 @@ class Result(object):
 
     def evaluate(self, output, target):
         """Calculate evaluation metrics of the model.
-        
         Args:
             output (torch.Tensor): The output of the model.
             target (torch.Tensor): The ground truth.

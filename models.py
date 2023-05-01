@@ -6,7 +6,6 @@ import torch.nn.functional as F
 import imagenet.mobilenet
 
 class Identity(nn.Module):
-    # a dummy identity module
     def __init__(self):
         super(Identity, self).__init__()
 
@@ -515,40 +514,24 @@ class ResNetSkipAdd(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x1 = self.relu(x)
-        # print("x1", x1.size())
         x2 = self.maxpool(x1)
-        # print("x2", x2.size())
         x3 = self.layer1(x2)
-        # print("x3", x3.size())
         x4 = self.layer2(x3)
-        # print("x4", x4.size())
         x5 = self.layer3(x4)
-        # print("x5", x5.size())
         x6 = self.layer4(x5)
-        # print("x6", x6.size())
         x7 = self.conv2(x6)
 
         # decoder
         y10 = self.decode_conv1(x7)
-        # print("y10", y10.size())
         y9 = F.interpolate(y10 + x6, scale_factor=2, mode='nearest')
-        # print("y9", y9.size())
         y8 = self.decode_conv2(y9)
-        # print("y8", y8.size())
         y7 = F.interpolate(y8 + x5, scale_factor=2, mode='nearest')
-        # print("y7", y7.size())
         y6 = self.decode_conv3(y7)
-        # print("y6", y6.size())
         y5 = F.interpolate(y6 + x4, scale_factor=2, mode='nearest')
-        # print("y5", y5.size())
         y4 = self.decode_conv4(y5)
-        # print("y4", y4.size())
         y3 = F.interpolate(y4 + x3, scale_factor=2, mode='nearest')
-        # print("y3", y3.size())
         y2 = self.decode_conv5(y3 + x1)
-        # print("y2", y2.size())
         y1 = F.interpolate(y2, scale_factor=2, mode='nearest')
-        # print("y1", y1.size())
         y = self.decode_conv6(y1)
 
         return y
@@ -611,40 +594,24 @@ class ResNetSkipConcat(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x1 = self.relu(x)
-        # print("x1", x1.size())
         x2 = self.maxpool(x1)
-        # print("x2", x2.size())
         x3 = self.layer1(x2)
-        # print("x3", x3.size())
         x4 = self.layer2(x3)
-        # print("x4", x4.size())
         x5 = self.layer3(x4)
-        # print("x5", x5.size())
         x6 = self.layer4(x5)
-        # print("x6", x6.size())
         x7 = self.conv2(x6)
 
         # decoder
         y10 = self.decode_conv1(x7)
-        # print("y10", y10.size())
         y9 = F.interpolate(y10, scale_factor=2, mode='nearest')
-        # print("y9", y9.size())
         y8 = self.decode_conv2(torch.cat((y9, x5), 1))
-        # print("y8", y8.size())
         y7 = F.interpolate(y8, scale_factor=2, mode='nearest')
-        # print("y7", y7.size())
         y6 = self.decode_conv3(torch.cat((y7, x4), 1))
-        # print("y6", y6.size())
         y5 = F.interpolate(y6, scale_factor=2, mode='nearest')
-        # print("y5", y5.size())
         y4 = self.decode_conv4(torch.cat((y5, x3), 1))
-        # print("y4", y4.size())
         y3 = F.interpolate(y4, scale_factor=2, mode='nearest')
-        # print("y3", y3.size())
         y2 = self.decode_conv5(torch.cat((y3, x1), 1))
-        # print("y2", y2.size())
         y1 = F.interpolate(y2, scale_factor=2, mode='nearest')
-        # print("y1", y1.size())
         y = self.decode_conv6(y1)
 
         return y
@@ -708,7 +675,6 @@ class MobileNetSkipAdd(nn.Module):
         for i in range(14):
             layer = getattr(self, 'conv{}'.format(i))
             x = layer(x)
-            # print("{}: {}".format(i, x.size()))
             if i==1:
                 x1 = x
             elif i==3:
@@ -725,7 +691,6 @@ class MobileNetSkipAdd(nn.Module):
                 x = x + x2
             elif i==2:
                 x = x + x3
-            # print("{}: {}".format(i, x.size()))
         x = self.decode_conv6(x)
         return x
 
@@ -788,7 +753,6 @@ class MobileNetSkipConcat(nn.Module):
         for i in range(14):
             layer = getattr(self, 'conv{}'.format(i))
             x = layer(x)
-            # print("{}: {}".format(i, x.size()))
             if i==1:
                 x1 = x
             elif i==3:
@@ -797,9 +761,7 @@ class MobileNetSkipConcat(nn.Module):
                 x3 = x
         for i in range(1,6):
             layer = getattr(self, 'decode_conv{}'.format(i))
-            # print("{}a: {}".format(i, x.size()))
             x = layer(x)
-            # print("{}b: {}".format(i, x.size()))
             x = F.interpolate(x, scale_factor=2, mode='nearest')
             if i==4:
                 x = torch.cat((x, x1), 1)
@@ -807,6 +769,5 @@ class MobileNetSkipConcat(nn.Module):
                 x = torch.cat((x, x2), 1)
             elif i==2:
                 x = torch.cat((x, x3), 1)
-            # print("{}c: {}".format(i, x.size()))
         x = self.decode_conv6(x)
         return x
