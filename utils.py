@@ -20,15 +20,16 @@ def parse_command():
                         help='path to checkpoint (default: none)')
     parser.add_argument('--data_path', metavar='PATH', default='data',
                         help='dataset path')
-    parser.add_argument('-j', '--workers', default=6, type=int, metavar='N',
-                        help='number of data loading workers (default: 6)')
+    parser.add_argument('-j', '--workers', default=3, type=int, metavar='N',
+                        help='number of data loading workers (default: 3)')
     parser.add_argument('--print-freq', '-p', default=50, type=int,
                         metavar='N', help='print frequency (default: 50)')
-    parser.add_argument('--gpu', default='0', type=str, metavar='N', help="gpu id")
+    parser.add_argument('--disable-cuda', action='store_true',
+                        help='Disable CUDA')
     parser.add_argument('--epochs', default=15, type=int, metavar='N',
                         help='number of total epochs to run (default: 15)')
-    parser.add_argument('--batch_size', default=2, type=int, metavar='BS',
-                        help='batch size (default: 2)')
+    parser.add_argument('--batch_size', default=16, type=int, metavar='BS',
+                        help='batch size (default: 16)')
     parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
                         metavar='LR', help='initial learning rate (default 0.01)')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
@@ -43,14 +44,14 @@ def parse_command():
     
     return args
 
-def colored_depthmap(depth, d_min=None, d_max=None):
+def calculate_relative_depth(depth):
+    d_min = torch.min(depth)
+    d_max = torch.max(depth)
+    return (depth - d_min) / (d_max - d_min)
+
+def colored_depthmap(depth):
     """Create a colorized depth map from a given depth map."""
-    if d_min is None:
-        d_min = np.min(depth)
-    if d_max is None:
-        d_max = np.max(depth)
-    depth_relative = (depth - d_min) / (d_max - d_min)
-    return 255 * cmap(depth_relative)[:,:,:3] # H, W, C
+    return 255 * cmap(depth)[:,:,:3] # H, W, C
 
 
 def merge_into_row(input, depth_target, depth_pred):
@@ -68,17 +69,19 @@ def merge_into_row(input, depth_target, depth_pred):
     # Convert RGB image tensor to numpy array and change the shape to (H, W, C)
     rgb = 255 * np.transpose(np.squeeze(input.cpu().numpy()), (1,2,0)) # H, W, C
     
+    print(f'TARGET - MIN: {torch.min(depth_target)},  MAX: {torch.max(depth_target)}')
+    print(f'PRED - MIN: {torch.min(depth_pred)},  MAX: {torch.max(depth_pred)}')
+    depth_target = calculate_relative_depth(depth_target)
+    # depth_pred = calculate_relative_depth(depth_pred)
+    # print(f'TARGET AFTER - MIN: {torch.min(depth_target)},  MAX: {torch.max(depth_target)}')
+    # print(f'PRED AFTER - MIN: {torch.min(depth_pred)},  MAX: {torch.max(depth_pred)}')
     # Convert target and predicted depth map tensors to numpy arrays and remove any extra dimensions
-    depth_target_cpu = np.squeeze(np.array(depth_target.cpu()))
-    depth_pred_cpu = np.squeeze(np.array(depth_pred.data.cpu()))
-    
-    # Determine the minimum and maximum depth values for scaling
-    d_min = min(np.min(depth_target_cpu), np.min(depth_pred_cpu))
-    d_max = max(np.max(depth_target_cpu), np.max(depth_pred_cpu))
+    depth_target_cpu = np.array(torch.squeeze(depth_target).cpu())
+    depth_pred_cpu = np.array(torch.squeeze(depth_pred).cpu())
     
     # Color code the target and predicted depth maps
-    depth_target_col = colored_depthmap(depth_target_cpu, d_min, d_max)
-    depth_pred_col = colored_depthmap(depth_pred_cpu, d_min, d_max)
+    depth_target_col = colored_depthmap(depth_target_cpu)
+    depth_pred_col = colored_depthmap(depth_pred_cpu)
     
     # Combine the RGB image and depth maps into a single row image
     img_merge = np.hstack([rgb, depth_target_col, depth_pred_col])
@@ -110,39 +113,7 @@ def save_image(img_merge, filename):
     """
     img_merge = Image.fromarray(img_merge.astype('uint8'))
     img_merge.save(filename)
-
-def adjust_learning_rate(optimizer, epoch, lr_init):
-    """
-    Adjusts the learning rate of the optimizer according to the given parameters.
-
-    Args:
-    - optimizer: the optimizer to adjust the learning rate for
-    - epoch: the current epoch of training
-    - lr_init: the initial learning rate of the optimizer
-    """
-    lr = lr_init * (0.1 ** (epoch // 5))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-def save_checkpoint(state, is_best, epoch, output_directory):
-    """
-    Saves the current checkpoint of the model to the output directory.
-
-    Args:
-    - state: the current state of the model to be saved
-    - is_best: whether or not this is the best model so far
-    - epoch: the current epoch of training
-    - output_directory: the directory to save the checkpoint to
-    """
-    checkpoint_filename = os.path.join(output_directory, 'checkpoint-' + str(epoch) + '.pth.tar')
-    torch.save(state, checkpoint_filename)
-    if is_best:
-        best_filename = os.path.join(output_directory, 'model_best.pth.tar')
-        shutil.copyfile(checkpoint_filename, best_filename)
-    if epoch > 0:
-        prev_checkpoint_filename = os.path.join(output_directory, 'checkpoint-' + str(epoch-1) + '.pth.tar')
-        if os.path.exists(prev_checkpoint_filename):
-            os.remove(prev_checkpoint_filename)
+    
 
 def rgb2grayscale(rgb):
     """

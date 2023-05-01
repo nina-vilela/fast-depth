@@ -31,9 +31,11 @@ fieldnames = ['rmse', 'mae', 'delta1', 'absrel',
 # Parse command-line arguments
 args = utils.parse_command()
 
-# Set the GPU to be used
-os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu # Set the GPU.
-
+if not args.disable_cuda and torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
+    
 # Create an instance of the Result class and set it to worst result.
 best_result = Result()
 best_result.set_to_worst()
@@ -41,7 +43,7 @@ best_result.set_to_worst()
 
 def get_model(input_size=(224,224)):
     """
-    Create an instance of a model.
+    Create an instance of fastdepth.
     
     Args:
     input_size (tuple): The size of the input image. Default is (224, 224).
@@ -56,14 +58,14 @@ def get_model(input_size=(224,224)):
         
         if type(checkpoint) is dict:
             args.start_epoch = checkpoint['epoch']
-            # best_result = checkpoint['best_result']
             model = checkpoint['model']
-            print("=> loaded best model (epoch {})".format(checkpoint['epoch']))
+            print("=> loaded model (epoch {})".format(checkpoint['epoch']))
         else:
             model = checkpoint
             args.start_epoch = 0
     else:
         model = models.MobileNetSkipAdd(output_size=input_size)
+        args.start_epoch = 0
     
     return model
 
@@ -81,11 +83,12 @@ def main():
     
     # Load the validation dataset
     val_loader = createDataLoaders('val', args.data_path, args.workers)
-
+    
     # Create the model
     model = get_model()
+
+    model.to(device)
     #model = torch.nn.DataParallel(model).cuda() # for multi-gpu training
-    model.cuda()
     print("=> model created.")
             
     if args.evaluate:
@@ -94,13 +97,15 @@ def main():
     elif args.train:
         # Load the training dataset
         train_loader = createDataLoaders('train', args.data_path, args.workers, args.batch_size)
-        
         optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+        
         if args.criterion == 'l2':
-            criterion = criteria.MaskedMSELoss().cuda()
+            criterion = criteria.MaskedMSELoss().to(device)
         elif args.criterion == 'l1':
-            criterion = criteria.MaskedL1Loss().cuda()
+            criterion = criteria.MaskedL1Loss().to(device)
+        elif args.criterion == 'scale_invariant':
+            criterion = criteria.MaskedScaleInvariantLoss().to(device)
         
         # Set the paths for the training and testing CSV files and the best.txt file
         train_csv = os.path.join(output_directory, 'train.csv')
@@ -114,17 +119,14 @@ def main():
         with open(test_csv, 'w') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-        
         # Train the model for the specified number of epochs
-        for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
-            
-            # Adjust the learning rate
-            utils.adjust_learning_rate(optimizer, epoch, args.lr)
-            
+        for epoch in range(args.start_epoch, args.epochs + args.start_epoch):
             train(train_loader, model, criterion, optimizer, epoch)
-            result, img_merge = validate(val_loader, model, epoch)
-            torch.cuda.synchronize()
+            # Adjust the learning rate
+            scheduler.step()
             
+            result, img_merge = validate(val_loader, model, epoch)
+
             is_best = result.rmse < best_result.rmse
             if is_best:
                 best_result = result
@@ -135,16 +137,11 @@ def main():
                                 result.delta1,
                                 result.gpu_time))
                 if img_merge is not None:
-                    img_filename = output_directory + 'comparison_best.png'
+                    img_filename = os.path.join(output_directory, 'comparison_best.png')
                     utils.save_image(img_merge, img_filename)
 
-                utils.save_checkpoint({
-                    'args': args,
-                    'epoch': epoch,
-                    'model': model,
-                    'best_result': best_result,
-                    'optimizer': optimizer,
-                }, is_best, epoch, output_directory)
+                torch.save(model,  os.path.join(output_directory,'fastdepth_best.pt'))
+            torch.save(model,  os.path.join(output_directory,'fastdepth_last.pt'))
         
 
 
@@ -176,8 +173,7 @@ def validate(val_loader, model, epoch, write_to_file=True):
             target = utils.rgb2grayscale(target)
 
         # Move the input and target to GPU
-        input, target = input.cuda(), target.cuda()
-        torch.cuda.synchronize()
+        input, target = input.to(device), target.to(device)
         
         # Calculate the time taken for data loading
         data_time = time.time() - start
@@ -186,15 +182,16 @@ def validate(val_loader, model, epoch, write_to_file=True):
         start = time.time()
         with torch.no_grad():
             pred = model(input)
+        
         torch.cuda.synchronize()
         # Calculate the time taken for computation
         gpu_time = time.time() - start
 
         # Measure accuracy and record loss
         result = Result()
+
         result.evaluate(pred.data, target.data)
         average_meter.update(result, gpu_time, data_time, input.size(0))
-        torch.cuda.synchronize()
 
         # Create image with the visualization of the prediction results
         if i == 0:
@@ -244,19 +241,22 @@ def train(train_loader, model, criterion, optimizer, epoch):
     """
     average_meter = AverageMeter()
     model.train()  
+    torch.cuda.synchronize()
     start = time.time()
     with tqdm(train_loader) as pbar:
         for i, (input, target) in enumerate(pbar):
             pbar.set_description(f"Epoch {epoch}")
-            input, target = input.cuda(), target.cuda()
+            input, target = input.to(device), target.cuda()
             torch.cuda.synchronize()
             data_time = time.time() - start
 
             # compute pred
             start = time.time()
             pred = model(input)
+
             if len(target.size()) == 5:
                 target = utils.rgb2grayscale(target)
+
             loss = criterion(pred, target)
             optimizer.zero_grad()
             loss.backward()  # compute gradient and do SGD step
@@ -266,7 +266,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
             # measure accuracy and record loss
             result = Result()
-            result.evaluate(pred.data, target.data)
+            result.evaluate(pred, target)
 
             average_meter.update(result, gpu_time, data_time, input.size(0))
             start = time.time()

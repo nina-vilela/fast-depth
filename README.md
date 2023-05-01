@@ -1,18 +1,51 @@
-# FastDepth
+# FastDepth - ReTraining and Evaluation
 
-This repository contains a PyTorch implementation of the FastDepth algorithm for monocular depth estimation which can be find originally at https://github.com/dwofk/fast-depth. 
+This repository contains a PyTorch implementation of the FastDepth algorithm for monocular depth estimation and includes the option to train or evaluate the model on a given dataset. 
 
-The repository includes a script to train or evaluate the model on a given dataset. The training implementation uses some functions  by https://github.com/tau-adl/FastDepth
+- The original FastDepth implementation can be find at https://github.com/dwofk/fast-depth. 
+- The training script uses some functions by https://github.com/tau-adl/FastDepth
 
 ## Usage
+Install requirements:
+```bash
+pip install -r requirements.txt
+```
 
-To train:
+Install torch:
+```bash
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+```
+
+The dataset must be in the following format:
+```bash
+.
+└── dataset_name/
+    ├── train/
+    │   ├── depths/
+    │   │   ├── 00001.png
+    │   │   ├── ...
+    │   │   └── n.png
+    │   └── images/
+    │       ├── 00001.png
+    │       ├── ...
+    │       └── n.png
+    └── val/
+        ├── depths/
+        │   ├── 00001.png
+        │   ├── ...
+        │   └── n.png
+        └── images/
+            ├── 00001.png
+            ├── ...
+            └── n.png
+```
+Train:
 
 ```bash
 python main.py --train --data_path /path/to/data
 ```
 
-To evaluate:
+Evaluate:
 ```bash
 python main.py --evaluate --data_path /path/to/data --checkpoint /path/to/checkpoint
 ```

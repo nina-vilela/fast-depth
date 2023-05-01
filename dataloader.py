@@ -20,12 +20,25 @@ def data_loader(path):
     """
     # Load the RGB image
     bgr = cv2.imread(path)
-    rgb = np.array(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)).astype('float32')
+    
+    # Center crop 
+    center = bgr.shape
+    w = center[1] - 20
+    h = center[0] - 20
+    x = center[1]/2 - w/2
+    y = center[0]/2 - h/2
+    bgr = bgr[int(y):int(y+h), int(x):int(x+w)]
+    
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    rgb = np.array(rgb).astype('float32')
     
     # Load the depth map
     depth_path = path.replace('images', 'depths')
-    depth = np.array(cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE))
-    
+    depth = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
+    depth = depth[int(y):int(y+h), int(x):int(x+w)] # Same center crop as done for the image
+    depth = cv2.resize(depth, (224,224))
+    depth = np.array([depth]).astype(np.float32)
+
     return rgb, depth
 
 
@@ -146,20 +159,22 @@ class DataLoader(data.Dataset):
         tuple
             A tuple containing the preprocessed RGB and depth images.
         """
-        transform_depth = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize(self.input_size),
-
-        ])
         transform_rgb = transforms.Compose([
             transforms.ToTensor(),
             transforms.Resize(self.input_size),
             transforms.Normalize((0,0,0), (255,255,255))
 
         ])
-        rgb_np = transform_rgb(rgb)
-        depth_np = transform_depth(depth)
-        return rgb_np, depth_np
+        
+        rgb = transform_rgb(rgb)
+        depth = torch.from_numpy(depth)
+        # Normalize depth
+        depth_min = torch.min(depth)
+        depth_max = torch.max(depth)
+        new_min = 0.10
+        new_max = 1.10
+        depth = (depth - depth_min) / (depth_max - depth_min) * (new_max - new_min) + new_min
+        return rgb, depth
 
     def val_transform(self, rgb, depth):
         """
@@ -175,22 +190,22 @@ class DataLoader(data.Dataset):
         tuple
             A tuple containing the preprocessed RGB and depth images.
         """
-        depth_np = depth
+        
         transform_rgb = transforms.Compose([
             transforms.ToTensor(),
             transforms.Resize(self.input_size),
             transforms.Normalize((0,0,0), (255,255,255))
-            
-        ])
-        transform_depth = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize(self.input_size)
-            
-        ])
-        rgb_np = transform_rgb(rgb)
-        depth_np = transform_depth(depth_np)
 
-        return rgb_np, depth_np
+        ])
+        rgb = transform_rgb(rgb)
+        depth = torch.from_numpy(depth)
+        # Normalize depth
+        depth_min = torch.min(depth)
+        depth_max = torch.max(depth)
+        new_min = 0.10
+        new_max = 1.10
+        depth = (depth - depth_min) / (depth_max - depth_min) * (new_max - new_min) + new_min
+        return rgb, depth
 
 def createDataLoaders(split, data_path, num_workers, batch_size=1):
     """
