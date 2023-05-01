@@ -2,7 +2,7 @@
 
 This repository contains a PyTorch implementation of the FastDepth algorithm for monocular depth estimation and includes the option to train or evaluate the model on a given dataset. 
 
-- The original FastDepth implementation can be find at https://github.com/dwofk/fast-depth. 
+- The original FastDepth implementation can be found at https://github.com/dwofk/fast-depth. 
 - The training script uses some functions by https://github.com/tau-adl/FastDepth
 
 ## Usage
