@@ -57,6 +57,11 @@ For more information on optional arguments:
 python main.py -h
 ```
 
+### Setup
+The following setups were tested:
+- i7-6850K with GeForce GTX 1080 Ti
+- AMD Ryzen 7 5700G with GeForce RTX 3060 Ti Lite Hash Rate
+
 ## Outputs
 - results/: Directory containing output files.
 - results/train.csv: CSV file containing results for the training set.
